@@ -2,9 +2,6 @@ import './index.css';
 import * as THREE from 'three';
 import TWEEN from '@tweenjs/tween.js';
 
-
-import('./assets/bottle/tinker.obj').then(console.log);
-
 const body = window.document.body,
       SCREEN_WIDTH = body.offsetWidth,
       SCREEN_HEIGHT = body.offsetHeight,
@@ -57,45 +54,7 @@ const background = new THREE.Mesh(new THREE.IcosahedronGeometry(40, 4), new THRE
 scene.add(background);
 
 
-// instantiate a loader
 var loader = new THREE.ObjectLoader();
-
-var particle;
-
-function generateSprite() {
-  var canvas = document.createElement( 'canvas' );
-  canvas.width = 16;
-  canvas.height = 16;
-  var context = canvas.getContext( '2d' );
-  var gradient = context.createRadialGradient( canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 2 );
-  gradient.addColorStop( 0, 'rgba(255,255,255,1)' );
-  gradient.addColorStop( 0.2, 'rgba(255,255,255,1)' );
-  gradient.addColorStop( 0.4, 'rgba(255,255,255,1)' );
-  gradient.addColorStop( 1, 'rgba(0,0,0,1)' );
-  context.fillStyle = gradient;
-  context.fillRect( 0, 0, canvas.width, canvas.height );
-  return canvas;
-}
-
-function initParticle( particle, delay ) {
-  var particle = this instanceof THREE.Sprite ? this : particle;
-  var delay = delay !== undefined ? delay : 0;
-  particle.position.set( 0, 0, 0 );
-  particle.scale.x = particle.scale.y = Math.random() * 0.05;
-  new TWEEN.Tween( particle )
-    .delay( delay )
-    .to( {}, 200 )
-    .onComplete( initParticle )
-    .start();
-  new TWEEN.Tween( particle.position )
-    .delay( delay )
-    .to( { x: Math.random() * 4 - 2, y: Math.random() * 1 + 1, z: Math.random() * 4 - 2 }, 200 )
-    .start();
-  new TWEEN.Tween( particle.scale )
-    .delay( delay )
-    .to( { x: 0.05, y: 0.05 }, 200 )
-    .start();
-}
 
 loader.parse(require('./models/bottle.json'), object => {
   const player = new THREE.Group();
@@ -111,19 +70,6 @@ loader.parse(require('./models/bottle.json'), object => {
     player.position.y = cubeScaleY;
     player.scale.set(playerScaleXZ, playerScaleY, playerScaleXZ);
   }).start();
-
-
-
-  var material = new THREE.SpriteMaterial( {
-    map: new THREE.CanvasTexture( generateSprite() ),
-    blending: THREE.AdditiveBlending,
-  } );
-  
-  for ( var i = 0; i < 100; i++ ) {
-    particle = new THREE.Sprite( material );
-    initParticle( particle, i * 10 );
-    scene.add( particle );
-  }
 
 });
 

@@ -1,6 +1,37 @@
 import './index.css';
 import * as THREE from 'three';
+import * as OIMO from 'oimo';
 import TWEEN from '@tweenjs/tween.js';
+
+
+const world = new OIMO.World({
+  timestep: 1/60, 
+  broadphase: 2, // 1 brute force, 2 sweep and prune, 3 volume tree
+  worldscale: 1, // scale full world 
+  random: false,  // randomize sample
+  info: false,   // calculate statistic or not
+  gravity: [0,-9.8,0] 
+})
+
+const box = world.add({
+  type:'box', // type of shape : sphere, box, cylinder 
+  size:[1,1,1], // size of shape
+  pos:[0,1,0], // start position in degree
+  rot:[0,0,90], // start rotation in degree
+  move:true,
+});
+
+//ground
+world.add({
+  size:[50, 10, 50],
+  pos:[0,-5,0],
+  density:1 
+})
+
+let updates = [];
+
+
+
 
 const body = window.document.body,
       SCREEN_WIDTH = body.offsetWidth,
@@ -84,8 +115,13 @@ function nextBlock(prev = null) {
   let block = createBlock();
   if (prev) {
     const {x, z} = prev.position;
-    block.position.set(x + Math.random() * 1.4 + 1.2, 0, z);
+    block.position.set(x + Math.random() * 1.4 + 1.4, 0, z);
   }
+  const {x, z} = block.position;
+  world.add({
+    size: [1, 1, 1],
+    pos: [x, 0.5, z]
+  })
   blockDown(block);
   return block;
 }
@@ -105,9 +141,13 @@ function createBlock() {
   return block;
 }
 
+
+
 function animate(time) {
   requestAnimationFrame(animate);
   TWEEN.update(time);
+  world.step();
+  updates.forEach(fn => (fn()));
   render();
 }
 
@@ -132,7 +172,19 @@ function onTouchEnd(e) {
         height = 2,
         duration = 500;
   
-  new TWEEN.Tween(player.position).to({x: distance}, duration).start();
+  new TWEEN.Tween(player.position).to({x: distance}, duration).start().onComplete(() => {
+    const {x,z} = player.position;
+    const _player = world.add({
+      type: 'cylinder',
+      size: [0.3, 0.64, 0.3],
+      pos: [x, 1 + 0.64 / 2, z],
+      move: true
+    })
+    updates.push(() => {
+      player.position.copy(new THREE.Vector3().copy(_player.getPosition()).add(new THREE.Vector3(0, -0.64 / 2, 0)));
+      player.quaternion.copy(_player.getQuaternion());
+    })
+  });
   const up = new TWEEN.Tween(player.position).to({y: 1 + height}, duration / 2).easing(TWEEN.Easing.Quadratic.Out);
   const down = new TWEEN.Tween(player.position).to({y: 1}, duration / 2).easing(TWEEN.Easing.Quadratic.In);
   new TWEEN.Tween(player.rotation).to({z: -2 * Math.PI}, duration).start();
@@ -142,3 +194,7 @@ function onTouchEnd(e) {
 document.addEventListener("touchstart", onTouchStart);
 
 document.addEventListener("touchend", onTouchEnd);
+
+
+
+

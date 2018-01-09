@@ -1,37 +1,9 @@
 import './index.css';
 import * as THREE from 'three';
-import * as OIMO from 'oimo';
+import * as CANNON from 'cannon';
 import TWEEN from '@tweenjs/tween.js';
-
-
-const world = new OIMO.World({
-  timestep: 1/60, 
-  broadphase: 2, // 1 brute force, 2 sweep and prune, 3 volume tree
-  worldscale: 1, // scale full world 
-  random: false,  // randomize sample
-  info: false,   // calculate statistic or not
-  gravity: [0,-9.8,0] 
-})
-
-const box = world.add({
-  type:'box', // type of shape : sphere, box, cylinder 
-  size:[1,1,1], // size of shape
-  pos:[0,1,0], // start position in degree
-  rot:[0,0,90], // start rotation in degree
-  move:true,
-});
-
-//ground
-world.add({
-  size:[50, 10, 50],
-  pos:[0,-5,0],
-  density:1 
-})
-
-let updates = [];
-
-
-
+import Rx from 'rxjs/Rx';
+import { Vector3 } from 'three';
 
 const body = window.document.body,
       SCREEN_WIDTH = body.offsetWidth,
@@ -40,161 +12,340 @@ const body = window.document.body,
       FRUSTUM_WIDTH = SCREEN_WIDTH * FRUSTUM_SCALE,
       FRUSTUM_HEIGHT = SCREEN_HEIGHT * FRUSTUM_SCALE;
 
-const renderer = new THREE.WebGLRenderer({antialias: true});
-renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-renderer.shadowMap.enabled = true;
+const FLIP_DISTANCE_UNIT = 2,
+      FLIP_HEIGHT = 1.5,
+      FLIP_DURATION = 500;
 
-body.appendChild(renderer.domElement);
+const BOTTLE_PRESSED_H = 1.2,
+      BOTTLE_PRESSED_V = 0.45,
+      BLOCK_PRESSED_H = 0.5;
 
-const scene = new THREE.Scene();
-scene.receiveShadow = true;
-scene.add(new THREE.GridHelper(1000, 500));
-scene.add(new THREE.AxisHelper(1000));
-
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-
-const light = new THREE.DirectionalLight(0xffffff, 0.28);
-light.position.set(2, 15, 10);
-light.castShadow = true;
-scene.add(light);
-
-const camera = new THREE.OrthographicCamera(FRUSTUM_WIDTH / -2, FRUSTUM_WIDTH / 2, FRUSTUM_HEIGHT / 2, FRUSTUM_HEIGHT / -2, -40, 1000);
-camera.position.set(-5,6,6);
-camera.castShadow = true;
-camera.receiveShadow = true;
-camera.lookAt(new THREE.Vector3(0,0,0))
+const PRESS_DURATION = 3000,
+      BOUNCE_DURATION = 500;
 
 
-let block = nextBlock();
-let next = nextBlock(block);
-scene.add(block);
-scene.add(next);
-
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200, 200, 200), new THREE.ShadowMaterial({transparent: true, opacity: 0.3, color: 0x000000}));
-ground.rotation.set(Math.PI / -2, 0, 0);
-ground.receiveShadow = true;
-ground.castShadow = true;
-scene.add(ground);
-
-
-const background = new THREE.Mesh(new THREE.IcosahedronGeometry(40, 4), new THREE.MeshLambertMaterial({color: 0xeeeeee, side: THREE.BackSide}));
-scene.add(background);
-
-
-var loader = new THREE.ObjectLoader();
-
-var object = loader.parse(require('./models/bottle.json'));
-
-
-const player = new THREE.Group();
-player.position.y = 1;
-player.add(object);
-scene.add(player);
-
-var props = {cubeScaleY: 1, playerScaleY: 1, playerScaleXZ: 1};
-
-const _update = ({cubeScaleY, playerScaleY, playerScaleXZ}) => {
-  block.scale.setY(cubeScaleY);
-  player.position.y = cubeScaleY;
-  player.scale.set(playerScaleXZ, playerScaleY, playerScaleXZ);
-}
-
-const press = new TWEEN.Tween(props)
-    .to({cubeScaleY : 0.5, playerScaleY: 0.65, playerScaleXZ: 1.5}, 2000)
-    .easing(TWEEN.Easing.Quadratic.Out)
-    .onUpdate(_update);
-
-const bounce = () => {
-  return new TWEEN.Tween(props).to({cubeScaleY: 1, playerScaleY: 1, playerScaleXZ: 1}, 500)
-    .easing(TWEEN.Easing.Bounce.Out).onUpdate(_update);
-}
-
-
-function nextBlock(prev = null) {
-  let block = createBlock();
-  if (prev) {
-    const {x, z} = prev.position;
-    block.position.set(x + Math.random() * 1.4 + 1.4, 0, z);
-  }
-  const {x, z} = block.position;
-  world.add({
-    size: [1, 1, 1],
-    pos: [x, 0.5, z]
-  })
-  blockDown(block);
-  return block;
-}
-
-function blockDown(block) {
-  block.position.y = 0.5;
-  return new TWEEN.Tween(block.position).to({y: 0}, 500).easing(TWEEN.Easing.Quadratic.Out).start();
-}
-
-function createBlock() {
-  const cube = new THREE.Mesh(new THREE.CubeGeometry(1,1,1), new THREE.MeshLambertMaterial({color: 0x00ffff}));
-  cube.position.y = 0.5;
-  cube.castShadow = true;
-  cube.receiveShadow = true;
-  const block = new THREE.Group();
-  block.add(cube);
-  return block;
-}
-
-
-
-function animate(time) {
-  requestAnimationFrame(animate);
-  TWEEN.update(time);
-  world.step();
-  updates.forEach(fn => (fn()));
-  render();
-}
-
-function render() {
-  renderer.render(scene, camera);
-}
-
-render();
-requestAnimationFrame(animate);
-
-
-function onTouchStart(e) {
-  press.start();
-}
-
-function onTouchEnd(e) {
-  press.stop();
-  console.log(e);
-  bounce().start();
-
-  const distance = 2,
-        height = 2,
-        duration = 500;
-  
-  new TWEEN.Tween(player.position).to({x: distance}, duration).start().onComplete(() => {
-    const {x,z} = player.position;
-    const _player = world.add({
-      type: 'cylinder',
-      size: [0.3, 0.64, 0.3],
-      pos: [x, 1 + 0.64 / 2, z],
-      move: true
-    })
-    updates.push(() => {
-      player.position.copy(new THREE.Vector3().copy(_player.getPosition()).add(new THREE.Vector3(0, -0.64 / 2, 0)));
-      player.quaternion.copy(_player.getQuaternion());
-    })
+class Block {
+  mesh = new THREE.Group();
+  body = new CANNON.Body({
+    mass: 0
   });
-  const up = new TWEEN.Tween(player.position).to({y: 1 + height}, duration / 2).easing(TWEEN.Easing.Quadratic.Out);
-  const down = new TWEEN.Tween(player.position).to({y: 1}, duration / 2).easing(TWEEN.Easing.Quadratic.In);
-  new TWEEN.Tween(player.rotation).to({z: -2 * Math.PI}, duration).start();
-  up.chain(down).start();
+
+  constructor() {
+    const cube = new THREE.Mesh(new THREE.CubeGeometry(1,1,1), new THREE.MeshLambertMaterial({color: 0x00ffff}));
+    cube.position.z = 0.5;
+    cube.castShadow = true;
+    cube.receiveShadow = true;
+    this.mesh.add(cube);
+    this.body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), new CANNON.Vec3(0, 0, 0.5));
+    // this.body.position.set(0, 0, 0);
+  }
+
+  update() {
+      
+  }
+
+  press() {   
+    this.mesh.scale.z = 1;
+    return [
+        new TWEEN.Tween(this.mesh.scale).to({z: BLOCK_PRESSED_H}, PRESS_DURATION).easing(TWEEN.Easing.Quadratic.Out)
+    ]
+  }
+
+  bounce() {
+    return [
+      new TWEEN.Tween(this.mesh.scale).to({z: 1}, BOUNCE_DURATION).easing(TWEEN.Easing.Bounce.Out)
+    ];
+  }
+
+  down() {
+    this.mesh.position.y = 0.5;
+    return new TWEEN.Tween(this.mesh.position).to({y: 0}, 500).easing(TWEEN.Easing.Quadratic.Out);
+  }
 }
 
-document.addEventListener("touchstart", onTouchStart);
+class Bottle {
+  connected = false;
 
-document.addEventListener("touchend", onTouchEnd);
+  boundingBox = new THREE.Box3();
+  mesh = new THREE.Group();
+  body = new CANNON.Body({
+    mass: 5,
+  });
+
+  constructor()  {
+    this.mesh.add(new THREE.ObjectLoader().parse(require('./models/bottle.json')));
+    this.mesh.position.z = 1;
+
+    this.computeBoundingBox();
+    const size = this.boundingBox.getSize();
+    console.log(size);
+    this.body.addShape(new CANNON.Cylinder(size.x / 4, size.x / 4, size.z, 10), new CANNON.Vec3(0, 0, size.z / 2));
+    this.body.position.set(0, 0, 1);
+  }
+
+  update() {
+    if (this.connected) {
+      this.mesh.position.copy(this.body.position);
+      this.mesh.quaternion.copy(this.body.quaternion);
+    }
+  }
+
+  computeBoundingBox() {
+    const boundingBox = object => {
+      if (object instanceof THREE.Mesh) {
+        const { geometry } = object;
+        if (!geometry.boundingBox) geometry.computeBoundingBox();
+        return geometry.boundingBox;
+      }
+      return new THREE.Box3();
+    }
+
+    const compute = object => {
+      const box = boundingBox(object);
+      object.children.forEach(o => {
+        box.union(compute(o));
+      })
+      box.min.multiply(object.scale).applyEuler(object.rotation);
+      box.max.multiply(object.scale).applyEuler(object.rotation);
+      return box;
+    }
+
+    this.boundingBox = compute(this.mesh);
+    console.log(this.boundingBox);
+    return this.boundingBox;
+  }
+
+  flip(displacement) {
+    const {x, y} = this.mesh.position.clone().add(displacement),
+    move = new TWEEN.Tween(this.mesh.position).to({x, y}, FLIP_DURATION),
+    rotation = new Vector3(1, 1, 0).sub(displacement.normalize()).multiply(new THREE.Vector3(-1, 1, 0)).multiplyScalar(Math.PI * 2),
+    rotate = new TWEEN.Tween(this.mesh.rotation).to(rotation, FLIP_DURATION),
+    up = new TWEEN.Tween(this.mesh.position).to({z: 1 + FLIP_HEIGHT}, FLIP_DURATION / 2).easing(TWEEN.Easing.Quadratic.Out),
+    down = new TWEEN.Tween(this.mesh.position).to({z: 1}, FLIP_DURATION / 2).easing(TWEEN.Easing.Quadratic.In);
+    up.chain(down);
+    return [
+      move, up, rotate
+    ]
+  }
+
+  fall() {
+    this.body.position.copy(this.mesh.position);
+    this.body.quaternion.copy(this.mesh.quaternion);
+    this.connected = true;
+  }
+
+  press() {
+    this.mesh.scale.set(1, 1, 1);
+    this.mesh.position.z = 1;
+    return [
+        new TWEEN.Tween(this.mesh.scale).to({x: BOTTLE_PRESSED_H, y: BOTTLE_PRESSED_H, z: BOTTLE_PRESSED_V}, PRESS_DURATION).easing(TWEEN.Easing.Quadratic.Out),
+        new TWEEN.Tween(this.mesh.position).to({z: BLOCK_PRESSED_H}, PRESS_DURATION).easing(TWEEN.Easing.Quadratic.Out),
+    ];
+  }
+
+  bounce() {
+    return [
+      new TWEEN.Tween(this.mesh.scale).to({x: 1, y: 1, z: 1}, BOUNCE_DURATION).easing(TWEEN.Easing.Bounce.Out),
+    ]
+  }
 
 
 
+}
 
+class Game {
+  time = 0;
+
+  pause = false;
+
+  updates = [];
+
+  world = new CANNON.World()
+
+  renderer = new THREE.WebGLRenderer({antialias: true})
+
+  scene = new THREE.Scene();
+
+  camera = new THREE.OrthographicCamera(FRUSTUM_WIDTH / -2, FRUSTUM_WIDTH / 2, FRUSTUM_HEIGHT / 2, FRUSTUM_HEIGHT / -2, -40, 1000);
+
+  bottle = new Bottle();
+
+  blocks = [];
+
+  _objects = [];
+
+  down$ = Rx.Observable.fromEvent(document, 'touchstart');
+  up$ = Rx.Observable.fromEvent(document, 'touchend');
+
+  constructor() {
+    //renderer
+    this.renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+    this.renderer.shadowMap.enabled = true;
+    body.appendChild(this.renderer.domElement);
+
+    //scene
+    this.scene.receiveShadow = true;
+
+    //helper
+    
+    const gridHelper = new THREE.GridHelper(1000, 500);
+    gridHelper.rotateX(Math.PI/-2)
+    this.scene.add(gridHelper);
+    this.scene.add(new THREE.AxisHelper(1000));
+    
+
+    //lights
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+    const light = new THREE.DirectionalLight(0xffffff, 0.28);
+    light.position.set(2, -10, 15);
+    light.castShadow = true;
+    this.scene.add(light);
+
+    this.camera.position.set(-5, -6, 6);
+    this.camera.castShadow = true;
+    this.camera.receiveShadow = true;
+    this.camera.up.set(0, 0, 1);
+    this.camera.lookAt(new THREE.Vector3(0,0,0))
+
+    //graphics ground
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200, 200, 200), new THREE.ShadowMaterial({transparent: true, opacity: 0.3, color: 0x000000}));
+    ground.receiveShadow = true;
+    ground.castShadow = true;
+    this.scene.add(ground);
+
+    //background
+    const background = new THREE.Mesh(new THREE.IcosahedronGeometry(40, 4), new THREE.MeshLambertMaterial({color: 0xeeeeee, side: THREE.BackSide}));
+    this.scene.add(background);
+
+   
+    this.scene.add(this.bottle.mesh);
+    this.world.gravity.set(0, 0, -9.8);
+
+    const _ground = new CANNON.Body({
+      mass: 0,
+    });
+
+    _ground.addShape(new CANNON.Plane(), new CANNON.Vec3(0, 0, 0))
+    this.world.addBody(_ground);
+
+    this.createBlock();
+    this.createBlock();
+
+    this.add(this.bottle);
+    this.moveCamera();
+
+
+
+    this.down$
+    .map(() => {
+      return {
+        time: this.time,
+        tweens: [
+          ...this.currentBlock.press(),
+          ...this.bottle.press(),
+        ].map(tween => (tween.start()))
+      }
+    })
+    .debounce(() => this.up$)
+    .map(({time, tweens}) => {
+      tweens.forEach(tween => {
+        tween.stop();
+      })
+
+      const interval = Math.min(5000, this.time - time);
+      [
+        ...this.currentBlock.bounce(),
+        ...this.bottle.bounce(),
+      ].map( tween => ( tween.start() ) );
+
+      const direction = this.nextBlock.mesh.position.clone().sub(this.bottle.mesh.position.sub(new THREE.Vector3(0, 0, 1))).normalize();
+      
+      const completes = this.bottle.flip(direction.multiplyScalar(interval / 1000 * 4))
+        .map( tween => ( tween.start() ) )
+        .map(tween => {
+          return Rx.Observable.bindCallback(tween.onComplete.bind(tween))()
+        });
+
+      return Rx.Observable.merge(...completes).last().do(() => {
+        const position = this.bottle.mesh.position.clone();
+        position.z = 0;
+        const offset = position.sub(this.nextBlock.mesh.position).length();
+        if (offset > 0.6 ) {
+          console.log(this.bottle.boundingBox.getSize().x);
+          console.log(offset);
+          this.bottle.fall();
+        } else {
+          this.bottle.mesh.rotation.set(0, 0, 0);
+          this.createBlock();
+          this.moveCamera();
+        }
+      }).subscribe();
+    })
+    .subscribe();
+    
+  }
+
+
+
+  createBlock() {
+    let block = new Block();
+    if (this.blocks.length) {
+        const direction = Math.random() > 0.5 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const last = this.blocks[this.blocks.length - 1];
+        const position = last.mesh.position.clone().add(direction.multiplyScalar(Math.random() * 1.2 + 1.2));
+        block.body.position.copy(position);
+        block.mesh.position.copy(position);
+    } else {
+        block.body.position.set(0, 0, 0);
+        block.mesh.position.set(0, 0, 0);
+    }
+    this.blocks.push(block);
+    this.add(block);
+    return block;
+  }
+
+  get currentBlock() {
+      return this.blocks[this.blocks.length - 2];
+  }
+
+  get nextBlock() {
+      return this.blocks[this.blocks.length - 1];
+  }
+
+  moveCamera() {
+    const position = this.nextBlock.mesh.position.clone().add(this.currentBlock.mesh.position).divideScalar(2);
+    return new TWEEN.Tween(this.camera.position).to(position, 500).easing(TWEEN.Easing.Quadratic.In).start();
+  }
+
+  add(object) {
+    this.world.addBody(object.body);
+    this.scene.add(object.mesh);
+    this._objects.push(object);
+  }
+
+  start() {
+    this.pause = false;
+    this.render();
+    requestAnimationFrame(this.update);
+  }
+
+  render() {
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  update = (time) => {
+    if (this.pause) return;
+    this.time = time;
+    requestAnimationFrame(this.update);
+    TWEEN.update();
+    this.world.step(1/60);
+    this._objects.forEach(o => {
+        o.update();
+    })
+    this.render();
+  }
+
+}
+
+new Game().start();

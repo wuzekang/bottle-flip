@@ -28,17 +28,9 @@ const PRESS_DURATION = 3000,
 const font = new THREE.FontLoader().parse(require('./assets/font.json'))
 
 
-
-
 class Text {
   mesh = new THREE.Group();
-
-
-  textMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
-  shadowMaterial = new THREE.MeshBasicMaterial({transparent: true, opacity: 0.3, color: 0x000000});
-
-  text = null;
-  shadow = null;
+  material = null;
 
   static glyphs = null;
 
@@ -46,7 +38,10 @@ class Text {
   scale = this.fontSize / font.data.resolution;
   lineHeight = ( font.data.boundingBox.yMax - font.data.boundingBox.yMin + font.data.underlineThickness ) * this.scale;
   
-  constructor(text){
+  _text = '';
+
+
+  constructor(text = '', material = new THREE.MeshBasicMaterial({color: 0xffffff})){
     if (Text.glyphs === null) {
       Text.glyphs = {};
       '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ '.split('').forEach(key => {
@@ -60,51 +55,80 @@ class Text {
         }
       })
     }
-    this.update(text);
+    this.material = material;
+    this._text = text.toString();
+    this.redraw();
   }
 
-  update(text) {
-    if (this.text) {
-      this.mesh.remove(this.text);
-    }
-    this.text = new THREE.Group();
+  get text(){
+    return this._text;
+  }
 
+  set text(_text) {
+    this._text = _text.toString();
+    this.redraw();
+  }
+
+  redraw() {
+    this.mesh.children.length = 0;
     let offset = 0;
-    text.toString().split('').map((key, index) => {
-      const fill = new THREE.Mesh(Text.glyphs[key].geometry, this.textMaterial),
-          shadow = new THREE.Mesh(Text.glyphs[key].geometry, this.shadowMaterial);
-
-      fill.add(shadow);
-      shadow.position.set(0, - this.lineHeight * 0.03, -0.1);
-      fill.position.set(offset, 0, 0);
+    this._text.toString().split('').map((key, index) => {
+      const glyph = new THREE.Mesh(Text.glyphs[key].geometry, this.material);
+      glyph.position.set(offset, 0, 0);
       offset += Text.glyphs[key].width;
-      return fill;
+      return glyph;
     }).forEach(char => {
-      this.text.add(char);
+      char.position.x -= offset/2;
+      this.mesh.add(char);
     })
-    this.text.position.set(-offset/2, 0, 0);
-    this.mesh.add(this.text);
   }
 }
 
 
-class ScoreText extends Text {
-  update(text) {
-    super.update(text);
+class ShadowText {
+  mesh = new THREE.Group();
+  fill = new Text();
+  shadow = new Text('', new THREE.MeshBasicMaterial({transparent: true, opacity: 0.3, color: 0x000000}));
+  lineHeight = this.fill.lineHeight;
+  _text = '';
+
+  constructor(text = '') {
+    this.text = text;
+    this.shadow.mesh.position.set(0, -0.02, -0.1);
+    this.mesh.add(this.fill.mesh, this.shadow.mesh);
+  }
+
+  get text() {
+    return this._text;
+  }
+
+  set text(_text) {
+    this._text = _text;
+    this.fill.text = _text;
+    this.shadow.text = _text;
+    this.onUpdate();
+  }
+
+  onUpdate() {
+
+  }
+}
+
+class ScoreText extends ShadowText {
+  onUpdate() {
     this.mesh.position.set(FRUSTUM_WIDTH/2, FRUSTUM_HEIGHT - this.lineHeight/2 - 40 * FRUSTUM_SCALE, 0);
   }
 }
 
-class CenterText extends Text {
+class CenterText extends ShadowText {
   constructor(text) {
     super(text);
     this.mesh.visible = false;
+    this.mesh.scale.set(0.8, 0.65, 1);
   }
 
-  update(text) {
-    super.update(text);
+  onUpdate() {
     this.mesh.position.set(FRUSTUM_WIDTH/2, FRUSTUM_HEIGHT/2, 0);
-    this.mesh.scale.set(0.8, 0.65, 1);
   }
 }
 
@@ -491,6 +515,7 @@ class Game {
   light = new THREE.DirectionalLight(0xffffff, 0.28);
 
   blocks = [];
+  _blocks = new THREE.Group();
 
   _objects = [];
 
@@ -512,9 +537,9 @@ class Game {
     
     //helper
     
-    const gridHelper = new THREE.GridHelper(1000, 500);
-    gridHelper.rotateX(Math.PI/-2)
-    this.scene.add(gridHelper);
+    // const gridHelper = new THREE.GridHelper(1000, 500);
+    // gridHelper.rotateX(Math.PI/-2)
+    // this.scene.add(gridHelper);
     // this.scene.add(new THREE.AxisHelper(1000));
     this.renderer.setPixelRatio(Math.min(2,window.devicePixelRatio));
 
@@ -554,7 +579,7 @@ class Game {
     const background = new THREE.Mesh(new THREE.IcosahedronGeometry(200), new THREE.MeshLambertMaterial({color: 0xeeeeee, side: THREE.BackSide}));
     // this.scene.add(background);
 
-   
+    this.scene.add(this._blocks);
     this.scene.add(this.bottle.mesh);
     this.world.gravity.set(0, 0, -9.8);
 
@@ -573,41 +598,46 @@ class Game {
 
 
 
-    this.down$
-    .filter(() => (!this.gameOver))
-    .map(() => {
-      this.bottle.polymeric.particles.visible = true;
-      this.bottle.sputtering.stop();
-      return {
-        time: this.time,
-        tweens: [
-          ...this.currentBlock.press(),
-          ...this.bottle.press(),
-        ].map(tween => (tween.start()))
-      }
-    })
-    .debounce(() => this.up$)
-    .map(({time, tweens}) => {
-      this.bottle.polymeric.particles.visible = false;
-      tweens.forEach(tween => {
-        tween.stop();
+    const _flipped$ = this.down$
+      .filter(() => (!this.gameOver))
+      .map(() => {
+        this.bottle.polymeric.particles.visible = true;
+        this.bottle.sputtering.stop();
+        return {
+          time: this.time,
+          tweens: [
+            ...this.currentBlock.press(),
+            ...this.bottle.press(),
+          ].map(tween => (tween.start()))
+        }
       })
+      .debounce(() => this.up$)
+      .map(({time, tweens}) => {
+        this.bottle.polymeric.particles.visible = false;
+        tweens.forEach(tween => {
+          tween.stop();
+        })
 
-      const interval = Math.min(5000, this.time - time);
-      [
-        ...this.currentBlock.bounce(),
-        ...this.bottle.bounce(),
-      ].map( tween => ( tween.start() ) );
+        const interval = Math.min(5000, this.time - time);
+        [
+          ...this.currentBlock.bounce(),
+          ...this.bottle.bounce(),
+        ].map( tween => ( tween.start() ) );
 
-      const direction = this.nextBlock.mesh.position.clone().sub(this.bottle.mesh.position.clone().setZ(0)).normalize();
+        const direction = this.nextBlock.mesh.position.clone().sub(this.bottle.mesh.position.clone().setZ(0)).normalize();
 
-      const completes = this.bottle.flip(direction.multiplyScalar(interval / 1000 * 4))
-        .map( tween => ( tween.start() ) )
-        .map(tween => {
-          return Rx.Observable.bindCallback(tween.onComplete.bind(tween))()
-        });
+        const completes = this.bottle.flip(direction.multiplyScalar(interval / 1000 * 4))
+          .map( tween => ( tween.start() ) )
+          .map(tween => {
+            return Rx.Observable.bindCallback(tween.onComplete.bind(tween))()
+          });
 
-      return Rx.Observable.merge(...completes).last().do(() => {
+        return completes;
+      })
+      .debounce(completes => {
+        return Rx.Observable.merge(...completes).last()
+      })
+      .do(() => {
         const position = this.bottle.mesh.position.clone();
         position.z = 0;
         if (position.clone().sub(this.currentBlock.mesh.position).length() <= 0.5) {
@@ -618,12 +648,6 @@ class Game {
             //game over
             this.bottle.fall();
 
-            // [...this.blocks].reverse().forEach((block, i) => {
-            //   new TWEEN.Tween(block.mesh.position).to({z: -1.5}, 100).delay(i * 200).onComplete(() => {
-            //     this.blocks.pop();
-            //     this.moveCamera();
-            //   }).start();
-            // })
             this.gameOverText.mesh.visible = true;
             this.gameOver = true;
 
@@ -633,7 +657,7 @@ class Game {
             } else {
               this.combo = 0;
             }
-            this.text.update(this.score += Math.pow(2, this.combo));
+            this.text.text = (this.score += Math.pow(2, this.combo));
             
 
             this.bottle.sputtering.emit();
@@ -641,10 +665,26 @@ class Game {
             this.moveCamera();
           }
         }
+      }).map((val ,index) => (index));
+
+      _flipped$.subscribe(console.log);
+      
+
+      this.down$.filter(() => (this.gameOver)).do(() => {
+        this.gameOver = false;
+        this.gameOverText.mesh.visible = false;
+        this.combo = 0;
+        this.score = 0;
+        this.text.text = 0;
+        this._blocks.children.length = 0;
+        this.blocks.length = 0;
+        this.createBlock();
+        this.createBlock();
+        this.bottle.mesh.position.set(0, 0, 1);
+        this.bottle.mesh.quaternion.set(0,0,0,0);
+        this.bottle.connected = false;
+        this.moveCamera(false);
       }).subscribe();
-    })
-    .subscribe();
-    
   }
 
 
@@ -663,7 +703,7 @@ class Game {
         block.mesh.position.set(0, 0, 0);
     }
     this.blocks.push(block);
-    this.add(block);
+    this._blocks.add(block.mesh);
     
     return block;
   }
@@ -676,9 +716,15 @@ class Game {
       return this.blocks[this.blocks.length - 1];
   }
 
-  moveCamera() {
+  moveCamera(animate = true) {
     const position = this.blocks.length >= 2 ? this.nextBlock.mesh.position.clone().setZ(0).add(this.currentBlock.mesh.position.clone().setZ(0)).divideScalar(2) : new THREE.Vector3();
-    new TWEEN.Tween(this.camera.position).to(new THREE.Vector3(-5, -6, 8).add(position), 500).easing(TWEEN.Easing.Quadratic.Out).start();
+    const cameraTarget = new THREE.Vector3(-5, -6, 8).add(position);
+    if (animate) {
+      new TWEEN.Tween(this.camera.position).to(cameraTarget, 500).easing(TWEEN.Easing.Quadratic.Out).start();
+    } else {
+      this.camera.position.copy(cameraTarget);
+    }
+    
     this.light.position.copy(new THREE.Vector3(2, -10, 15).add(position));
     this.light.target.position.copy(position);
   }

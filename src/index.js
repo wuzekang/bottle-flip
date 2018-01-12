@@ -7,11 +7,16 @@ import Rx from 'rxjs/Rx';
 
 
 const body = window.document.body,
-      SCREEN_WIDTH = body.offsetWidth,
-      SCREEN_HEIGHT = body.offsetHeight,
-      FRUSTUM_SCALE = 0.009,
-      FRUSTUM_WIDTH = SCREEN_WIDTH * FRUSTUM_SCALE,
-      FRUSTUM_HEIGHT = SCREEN_HEIGHT * FRUSTUM_SCALE;
+      BODY_WIDTH = body.offsetWidth,
+      BODY_HEIGHT = body.offsetHeight,
+      ASPECT = BODY_WIDTH / BODY_HEIGHT,
+      SCREEN_HEIGHT = Math.min(768, BODY_HEIGHT),
+      SCREEN_WIDTH = SCREEN_HEIGHT * ASPECT,
+      FRUSTUM_HEIGHT = 6,
+      FRUSTUM_WIDTH = FRUSTUM_HEIGHT * ASPECT,
+      FRUSTUM_SCALE = FRUSTUM_HEIGHT / SCREEN_HEIGHT;
+
+      console.log(FRUSTUM_HEIGHT);
 
 const FLIP_DISTANCE_UNIT = 2,
       FLIP_HEIGHT = 1.5,
@@ -522,15 +527,26 @@ class Game {
   UI = new THREE.Group();
   canvas = new Canvas();
 
-  down$ = Rx.Observable.fromEvent(document, 'touchstart');
-  up$ = Rx.Observable.fromEvent(document, 'touchend');
+  down$ =  Rx.Observable.merge(
+    Rx.Observable.fromEvent(document, 'mousedown'),
+    Rx.Observable.fromEvent(document, 'touchstart')
+  ).do(e => { e.preventDefault(); });
+
+  up$ = Rx.Observable.merge(
+    Rx.Observable.fromEvent(document, 'mouseup'),
+    Rx.Observable.fromEvent(document, 'touchend')
+  ).do(e => { e.preventDefault(); });
 
   constructor() {
     //renderer
     this.renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
     // this.renderer.shadowMap.enabled = true;
     // this.renderer.clearColor = 0xffffff;
-    body.appendChild(this.renderer.domElement);
+
+    const canvas = this.renderer.domElement;
+    canvas.style.height = '100%';
+    canvas.style.width = '100%';
+    body.appendChild(canvas);
 
     //scene
     this.scene.receiveShadow = true;

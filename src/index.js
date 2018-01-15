@@ -32,6 +32,16 @@ const PRESS_DURATION = 3000,
 
 const font = new THREE.FontLoader().parse(require('./assets/font.json'))
 
+const objectLoader = new THREE.ObjectLoader();
+
+const cubes = [
+  objectLoader.parse(require('./models/safe.json')),
+  objectLoader.parse(require('./models/microwave_oven.json')),
+  objectLoader.parse(require('./models/desk.json')),
+  objectLoader.parse(require('./models/magic.json')),
+  objectLoader.parse(require('./models/logo.json')),
+  objectLoader.parse(require('./models/steve.json')),
+];
 
 class Text {
   mesh = new THREE.Group();
@@ -351,7 +361,7 @@ class Block {
   });
 
   constructor() {
-    const cube = new THREE.Mesh(new THREE.CubeGeometry(1,1,1), new THREE.MeshLambertMaterial({color: new THREE.Color().setHSL(Math.random(),0.3,0.5) }));
+    const cube = cubes[ Math.floor(Math.random() * cubes.length) ].clone();
     cube.position.z = 0.5;
     cube.castShadow = true;
     cube.receiveShadow = true;
@@ -502,6 +512,8 @@ class Game {
   gameOver = false;
   
   time = 0;
+  
+  flipping = false;
 
   pause = false;
 
@@ -615,8 +627,9 @@ class Game {
 
 
     const _flipped$ = this.down$
-      .filter(() => (!this.gameOver))
+      .filter(() => (!this.gameOver && !this.flipping))
       .map(() => {
+        this.flipping = true;
         this.bottle.polymeric.particles.visible = true;
         this.bottle.sputtering.stop();
         return {
@@ -654,6 +667,7 @@ class Game {
         return Rx.Observable.merge(...completes).last()
       })
       .do(() => {
+        this.flipping = false;
         const position = this.bottle.mesh.position.clone();
         position.z = 0;
         if (position.clone().sub(this.currentBlock.mesh.position).length() <= 0.5) {

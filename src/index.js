@@ -18,7 +18,7 @@ const body = window.document.body,
 
       console.log(FRUSTUM_HEIGHT);
 
-const FLIP_DISTANCE_UNIT = 2,
+const FLIP_DISTANCE_UNIT = 4,
       FLIP_HEIGHT = 1.5,
       FLIP_DURATION = 500;
 
@@ -402,7 +402,7 @@ class Bottle {
   bottle = new THREE.ObjectLoader().parse(require('./models/bottle.json'));
 
   body = new CANNON.Body({
-    mass: 10,
+    mass: 0.1,
   });
 
   polymeric = new PolymericParticles();
@@ -420,7 +420,7 @@ class Bottle {
     
 
     this.offset = new THREE.Vector3(0, 0, size.z / 2);
-    this.body.addShape(new CANNON.Cylinder(size.x / 4, size.x / 4, size.z, 20), new CANNON.Vec3(0, 0, 0));
+    this.body.addShape(new CANNON.Cylinder(size.x / 2, size.x / 2, size.z, 20));
     this.body.sleep();
 
     this.mesh.add(this.polymeric.particles);
@@ -532,9 +532,6 @@ class Game {
   light = new THREE.DirectionalLight(0xffffff, 0.28);
 
   blocks = [];
-  _blocks = new THREE.Group();
-
-  _objects = [];
 
   UI = new THREE.Group();
   canvas = new Canvas();
@@ -607,8 +604,6 @@ class Game {
     const background = new THREE.Mesh(new THREE.IcosahedronGeometry(200), new THREE.MeshLambertMaterial({color: 0xeeeeee, side: THREE.BackSide}));
     // this.scene.add(background);
 
-    this.scene.add(this._blocks);
-    this.scene.add(this.bottle.mesh);
     this.world.gravity.set(0, 0, -9.8);
 
     const _ground = new CANNON.Body({
@@ -655,7 +650,7 @@ class Game {
 
         const direction = this.nextBlock.mesh.position.clone().sub(this.bottle.mesh.position.clone().setZ(0)).normalize();
 
-        const completes = this.bottle.flip(direction.multiplyScalar(interval / 1000 * 4))
+        const completes = this.bottle.flip(direction.multiplyScalar(interval / 1000 * FLIP_DISTANCE_UNIT))
           .map( tween => ( tween.start() ) )
           .map(tween => {
             return Rx.Observable.bindCallback(tween.onComplete.bind(tween))()
@@ -706,7 +701,9 @@ class Game {
         this.combo = 0;
         this.score = 0;
         this.text.text = 0;
-        this._blocks.children.length = 0;
+        this.blocks.forEach(block => {
+          this.remove(block);
+        })
         this.blocks.length = 0;
         this.createBlock();
         this.createBlock();
@@ -733,8 +730,7 @@ class Game {
         block.mesh.position.set(0, 0, 0);
     }
     this.blocks.push(block);
-    this._blocks.add(block.mesh);
-    
+    this.add(block);
     return block;
   }
 
@@ -762,8 +758,13 @@ class Game {
   add(object) {
     this.world.addBody(object.body);
     this.scene.add(object.mesh);
-    this._objects.push(object);
   }
+
+  remove(object) {
+    this.world.remove(object.body);
+    this.scene.remove(object.mesh);
+  }
+
 
   start() {
     this.pause = false;
@@ -781,9 +782,7 @@ class Game {
     requestAnimationFrame(this.update);
     TWEEN.update();
     this.world.step(1/60);
-    this._objects.forEach(o => {
-        o.update();
-    })
+    this.bottle.update();
     this.render();
   }
 

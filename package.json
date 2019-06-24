@@ -1,13 +1,17 @@
 {
   "name": "game",
   "homepage": "https://wuzekang.github.io/bottle-flip/",
+  "proxy": "http://localhost",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
     "@tweenjs/tween.js": "^17.1.1",
     "@types/cannon": "^0.1.2",
     "@types/three": "^0.89.1",
+    "antd-mobile": "^2.1.4",
+    "aphrodite": "^1.2.5",
     "autoprefixer": "7.1.6",
+    "axios": "^0.17.1",
     "babel-core": "6.26.0",
     "babel-eslint": "7.2.3",
     "babel-jest": "20.0.3",
@@ -31,19 +35,29 @@
     "extract-text-webpack-plugin": "3.0.2",
     "file-loader": "1.1.5",
     "fs-extra": "3.0.1",
+    "glamor": "^2.20.40",
+    "glamorous": "^4.11.3",
     "html-webpack-plugin": "2.29.0",
     "jest": "20.0.4",
+    "lodash": "^4.17.4",
+    "mersenne-twister": "^1.1.0",
     "object-assign": "4.1.1",
     "oimo": "^1.0.9",
     "postcss-flexbugs-fixes": "3.2.0",
     "postcss-loader": "2.0.8",
     "promise": "8.0.1",
+    "qs": "^6.5.1",
     "raf": "3.4.0",
     "react": "^16.2.0",
     "react-dev-utils": "^4.2.1",
     "react-dom": "^16.2.0",
+    "react-redux": "^5.0.6",
+    "redux": "^3.7.2",
+    "redux-observable": "^0.17.0",
     "rxjs": "^5.5.6",
+    "seed-random": "^2.2.0",
     "style-loader": "0.19.0",
+    "styled-components": "^2.4.0",
     "sw-precache-webpack-plugin": "0.11.4",
     "three": "^0.89.0",
     "three.texttexture": "^17.11.21",
@@ -97,12 +111,27 @@
   "babel": {
     "presets": [
       "react-app"
+    ],
+    "plugins": [
+      "transform-decorators-legacy",
+      [
+        "import",
+        [
+          {
+            "libraryName": "antd-mobile",
+            "style": "css"
+          }
+        ]
+      ]
     ]
   },
   "eslintConfig": {
     "extends": "react-app"
   },
   "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-plugin-import": "^1.6.3",
+    "babel-plugin-transform-decorators-legacy": "^1.3.4",
     "gh-pages": "^1.1.0"
   }
 }

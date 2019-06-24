@@ -1,3 +1,5 @@
+![Play](./screenshots/0.play.gif)
+
 ## Start
 
 ```bash

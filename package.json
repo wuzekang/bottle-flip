@@ -24,7 +24,7 @@
     "dotenv": "4.0.0",
     "eases": "^1.0.8",
     "es6-tween": "^5.0.5",
-    "eslint": "4.10.0",
+    "eslint": "4.19.1",
     "eslint-config-react-app": "^2.0.1",
     "eslint-loader": "1.9.0",
     "eslint-plugin-flowtype": "2.39.1",
